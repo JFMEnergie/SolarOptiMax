@@ -9,7 +9,7 @@ const char * password = "helloworld";
 
 
 String FirmwareVer = {
-  "S01.03"
+  "S01.02"
 };
 #define URL_fw_Version "https://raw.githubusercontent.com/JFMEnergie/SolarOptiMax/Update/Software/Versions/Download/Releases/fw.ino/bin_version.txt"
 #define URL_fw_Bin "https://raw.githubusercontent.com/JFMEnergie/SolarOptiMax/blob/Update/Software/Versions/Download/Releases/fw.ino/build/esp32.esp32.esp32/fw.ino.ino.bin"
@@ -37,7 +37,6 @@ void repeatedCall() {
   }
   if ((currentMillis - previousMillis_2) >= mini_interval) {
     previousMillis_2 = currentMillis;
-    Serial.println("OUI cela fonctionne");
     Serial.print("idle loop...");
     Serial.print(num++);
     Serial.print(" Active fw version:");
