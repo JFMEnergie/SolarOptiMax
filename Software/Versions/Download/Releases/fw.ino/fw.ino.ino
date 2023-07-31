@@ -9,7 +9,7 @@ const char * password = "helloworld";
 
 
 String FirmwareVer = {
-  "S01.02"
+  "S00.00"
 };
 #define URL_fw_Version "https://raw.githubusercontent.com/JFMEnergie/SolarOptiMax/Update/Software/Versions/Download/Releases/fw.ino/bin_version.txt"
 #define URL_fw_Bin "https://raw.githubusercontent.com/JFMEnergie/SolarOptiMax/Update/Software/Versions/Download/Releases/fw.ino/fw.bin"
@@ -23,7 +23,7 @@ int FirmwareVersionCheck();
 
 unsigned long previousMillis = 0; // will store last time LED was updated
 unsigned long previousMillis_2 = 0;
-const long interval = 60000;
+const long interval = 10000;
 const long mini_interval = 1000;
 void repeatedCall() {
   static int num=0;
