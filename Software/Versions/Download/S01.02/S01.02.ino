@@ -20,12 +20,14 @@
 #include <WiFiUdp.h>
 #include <WiFiClientSecure.h>
 
-#define PZEM_RX_PIN 17
-#define PZEM_TX_PIN 16
+#define PZEM_RX_PIN 16
+#define PZEM_TX_PIN 17
 #define PZEM_SERIAL Serial2
 PZEM004Tv30 pzem(PZEM_SERIAL, PZEM_RX_PIN, PZEM_TX_PIN);
 #define NUM_PZEMS 2
 PZEM004Tv30 pzems[NUM_PZEMS];
+#define LY_ADDRESS 0x10
+#define PV_ADDRESS 0x11
 
 LiquidCrystal_I2C lcd(0x27, 20, 4);
 
@@ -39,7 +41,7 @@ void firmwareUpdate();
 int FirmwareVersionCheck();
 
 unsigned long previousMillis = 0;
-const long interval = 10000;
+const long interval = 15*60*1000;
 
 const char* defaultSsid = "SolarOptiMax";
 const char* defaultPassword = "ConfigClient";
@@ -54,7 +56,7 @@ String automation_id;
 
 
 const int numRelays = 4;
-const int relayPin[numRelays] = {32, 33, 26, 25};
+const int relayPin[numRelays] = {32, 26 , 33, 2};
 const char* relayNames[numRelays] = {"Relai 1", "Relai 2", "Relai 3", "Relai 4"};
 const char* relayPowerDefaults[numRelays] = {"0", "0", "0", "0"};
 int SSR1 = 0;
@@ -89,10 +91,7 @@ int lastbuypf  = 0;
 int lastlastbuypf = 0;
 
 const char* serverUrl = "https://solar.frb.io/api/addprodsource";
-// String buildURL(int automation_ID) {
-//   String serverUrl = "https://solar.frb.io/api/getpanoprofil/";
-//   return serverUrl + String(automation_ID);
-// }
+const char* serverBaseUrl = "https://solar.frb.io/api/getpanoprofil/";
 
 const char* ntpServer = "pool.ntp.org";
 const long  gmtOffset_sec = 3600;
@@ -144,12 +143,18 @@ void setup() {
   for (int i = 0; i < numRelays; i++) {
     relayConfigs[i].etat = Inactif;
     relayActivatedTime[i] = 0;
+    pinMode(relayPin[i], OUTPUT);
+    digitalWrite(relayPin[i], LOW);
   }
 
   preferences.begin("config", false);
   ssid = preferences.getString("ssid", ssid);
   password = preferences.getString("password", password);
   automation_id = preferences.getString("automation_id", "0");
+  // preferences.putUInt("automation_id", 0);
+  // preferences.putUInt("building_id", 0);
+  // preferences.putUInt("puissance", 0);
+  // preferences.putUInt("nombre_pano", 0);
   // maxpower = preferences.getInt("maxpower", 0);
   // VAH = preferences.getString("VAH", VAH);
   // VAS = preferences.getString("VAS", VAS);
@@ -370,88 +375,54 @@ void WifiConnect(const String& ssid, const String& password){
   }
 }
 
-// void ConfigClient() {
-//   String Configurl = buildURL(automation_id);
+// bool checkServer() {
 //   HTTPClient http;
-//   http.begin(Configurl);
-//   int httpResponseCode = http.GET();
+//   String serverUrl = serverBaseUrl + String(automation_id);
 
-//   if (httpResponseCode == HTTP_CODE_OK) {
+//   http.begin(serverUrl);
+
+//   int httpCode = http.GET();
+//   if (httpCode == HTTP_CODE_OK) {
 //     String payload = http.getString();
-//     StaticJsonDocument<2048> doc;
-//     deserializeJson(doc, payload);
-//     automation_id = doc["id"];
-//     preferences.putInt("automation_id", automation_id);
-//     maxpower = doc["puissance"];
-//     preferences.putInt("maxpower", maxpower);
-//     VAH = doc["version_automate_hard"].as<String>();
-//     VAS = doc["version_automate_soft"].as<String>();
-//     installation_automate = doc["installation_automate"].as<String>();
-//     installation_pv = doc["installation_pano"].as<String>();
-//     String Newssid = doc["wifi_id"];
-//     String Newpassword = doc["wifi_password"];
-//     // if(!Newssid.equals(ssid) or !Newpassword.equals(password)){
-//     //   WifiConnect(Newssid, Newspassword);
-//     //   if(WifiStatus==1){
-//     //     preferences.putString("ssid", ssid.isEmpty() ? defaultSsid : Newssid);
-//     //     preferences.putString("password", password.isEmpty() ? defaultPassword : Newpassword);
-//     //   }
-//     // }
+//     http.end();
 
-//     JsonArray relaisArray = doc["relais"];
-//     for (JsonVariant relais : relaisArray) {
-//       const char* relai_id = relais["relai_id"];
-//       const char* relai_setting = relais["relai_setting"];
-//       const char* object_id = relais["object_id"];
-//       int object_power = relais["object_power"];
-//       int object_power_continu = relais["object_power_continu"];
-//       int object_continu_duration = relais["object_continu_duration"];
+//     StaticJsonDocument<1024> doc;
+//     DeserializationError error = deserializeJson(doc, payload);
 
-//       for (int i = 0; i < numRelays; i++) {
-//         if (String(relai_id) == String(relayNames[i])) {
-//           relayConfigs[i].etat = (relai_setting[0] == 'N' || relai_setting[0] == 'S') ? (object_power_continu ? ActifContinu : ActifDiscontinu) : Inactif;
-//           relayConfigs[i].power = String(object_power);
-//           relayConfigs[i].duration = String(object_continu_duration);
+//     if (!error) {
+//       int automationId = doc["id"];
+//       preferences.putInt("automation_id", automationId);
 
-//           Serial.print("Relay ");
-//           Serial.print(i + 1);
-//           Serial.print(" - État : ");
-//           Serial.print(relayConfigs[i].etat);
-//           Serial.print(" - Puissance : ");
-//           Serial.print(relayConfigs[i].power);
-//           Serial.print(" - Durée de continuité : ");
-//           Serial.println(relayConfigs[i].duration + " minutes");
+//       int buildingId = doc["building_id"];
+//       preferences.putInt("building_id", buildingId);
 
-//           preferences.putInt((String("relay") + String(i + 1) + "Etat").c_str(), static_cast<int>(relayConfigs[i].etat));
-//           preferences.putString((String("relay") + String(i + 1) + "Power").c_str(), relayConfigs[i].power);
-//           preferences.putString((String("relay") + String(i + 1) + "Duration").c_str(), relayConfigs[i].duration);
-//           break;
-//         }
-//       }
+//       int puissance = doc["puissance"];
+//       preferences.putInt("puissance", puissance);
+
+//       int nombrePano = doc["nombre_pano"];
+//       preferences.putInt("nombre_pano", nombrePano);
+
+//       const char* wifiId = doc["wifi_id"];
+//       preferences.putString("ssid", wifiId);
+
+//       const char* wifiPassword = doc["wifi_password"];
+//       preferences.putString("password", wifiPassword);
+
+//       preferences.end();
+
+//       return true;
+//     } else {
+//       Serial.println("Erreur lors du parsing JSON.");
 //     }
 //   } else {
-//     Serial.print("Error in HTTP request. HTTP response code: ");
-//     Serial.println(httpResponseCode);
+//     Serial.print("Erreur HTTP : ");
+//     Serial.println(httpCode);
 //   }
+
 //   http.end();
+//   return false;
 // }
 
-// void printConfigClient(){
-//   Serial.println("===== Configuration de l'automate =====");
-//   Serial.println("Numéro de l'automate : " + String(automation_id)); 
-//   Serial.println("Puissance totale :" + String(maxpower));
-//   Serial.println("Version Hardware :" + preferences.getString("VAH"));
-//   Serial.println("Version Software :" + preferences.getString("VAS"));
-//   Serial.println("date installation automate : " + preferences.getString("installation_automate"));
-//   Serial.println("date installation pv :" + preferences.getString("installation_pv"));
-//   Serial.println("===== Configuration WiFi =====");
-//   Serial.println("SSID : " + preferences.getString("ssid"));
-//   Serial.println("Password : " + preferences.getString("password"));
-//   Serial.println("===== Configuration des relais =====");
-//   for (int i = 0; i < numRelays; i++) {
-//     Serial.println("Relay " + String(i + 1) + " - État : " + relayConfigs[i].etat + " - Puissance : " + relayConfigs[i].power + " - Durée de continuité : " + relayConfigs[i].duration + " minutes");
-//   }
-// }
 
 void firmwareUpdate(void) {
   WiFiClientSecure client;
@@ -586,21 +557,20 @@ void loop() {
     if (timeinfo.tm_hour != lastHour && TrueWifiStatus == 1 && WifiStatus==0 ) {
       WifiConnect(ssid, password);
     }
-    else if (timeinfo.tm_hour != lastHour){
-      unsigned long currentMillis = millis();
-      if ((currentMillis - previousMillis) >= interval) {
-        previousMillis = currentMillis;
-        if (FirmwareVersionCheck()) {
-          firmwareUpdate();
-        }
+    unsigned long currentMillis = millis();
+    if ((currentMillis - previousMillis) >= interval) {
+      previousMillis = currentMillis;
+      if (FirmwareVersionCheck()) {
+        firmwareUpdate();
       }
     }
-
-    // static unsigned long lastConfigUpdateTime = 0;
-    // unsigned long currentTime = millis();
-    // if (currentTime - lastConfigUpdateTime >= 24 * 60 * 60 * 1000) {
-    //   ConfigClient();
-    //   lastConfigUpdateTime = currentTime;
+    // if (millis() % 10000 == 0) {
+    //   if (checkServer()) {
+    //     Serial.println("Mise à jour réussie !");
+    //   } 
+    //   else {
+    //     Serial.println("Echec de la mise à jour...");
+    //   }
     // }
 
     Serial.println(&timeinfo, "%H:%M:%S");
@@ -611,16 +581,21 @@ void loop() {
       lastHour = timeinfo.tm_hour;
     }
   }
-
+  
+  float acbuy_voltage = 0;
   float acbuy_current = 0;
   signed int acbuy_power = 0;    
   float acbuy_energy = 0;
   float acbuy_pf = 0;
+  float acp_voltage = 0;
   float acp_current = 0;  
   signed int acp_power = 0;
   float acp_energy = 0;
   float acp_pf = 0;
-
+  float acp_voltage_correction = 1.002;
+  float acp_current_correction = 0.73;
+  float acbuy_current_correction = 0.76;
+  float acbuy_voltage_correction = 1.005;
   for (int i = 0; i < NUM_PZEMS; i++) {
     Serial.print("PZEM ");
     Serial.print(i);
@@ -629,17 +604,26 @@ void loop() {
     Serial.println("===================");
 
     if (i == 0) {
+      acbuy_voltage= pzems[i].voltage();
       acbuy_current = pzems[i].current();
       acbuy_power = pzems[i].power();  
       acbuy_energy = pzems[i].energy();
       acbuy_pf = pzems[i].pf();
     } else if (i == 1) {
+      acp_voltage= pzems[i].voltage();
       acp_current = pzems[i].current();
       acp_power = pzems[i].power();
       acp_energy = pzems[i].energy();
       acp_pf = pzems[i].pf();
     }
   }
+
+  // //Coorection factor
+  acp_current = acp_current*acp_current_correction;
+  acbuy_current = acbuy_current*acbuy_current_correction;
+  acp_voltage = acp_voltage*acp_voltage_correction;
+  acbuy_voltage = acbuy_voltage*acbuy_voltage_correction;
+
   if (acp_current == acbuy_current - 0,01) {
     acbuy_current = acbuy_current - 0,01;
   }
@@ -647,9 +631,9 @@ void loop() {
     acbuy_power = acbuy_power - 1;
   } 
   Serial.println("-------------------");
-  if ((acp_current >= acbuy_current - 0.01) && (acp_power >= acbuy_power - 1)) {
+  if ((acp_voltage > acbuy_voltage) && (acp_current > acbuy_current) && (acp_power > acbuy_power)) {
     if (((acp_pf >= acbuy_pf) || ((acbuy_power >= lastbuypower - 2) && (acbuy_power <= lastbuypower + 2))) &&
-        ((((3.5 * acbuy_current) / acp_current) > acbuy_pf)) || (((lastlastbuypf >= 0.9 * acbuy_pf) && (lastlastbuypf <= 0.9 * acbuy_pf)) && (acbuy_pf >= 3 * lastbuypf))) {
+        ((((3.8 * acbuy_current) / acp_current) > acbuy_pf)) || (((lastlastbuypf >= 0.9 * acbuy_pf) && (lastlastbuypf <= 0.9 * acbuy_pf)) && (acbuy_pf >= 3 * lastbuypf))) {
         acbuy_power = -1 * acbuy_power;
         Serial.println("Injection");
     }
@@ -809,7 +793,8 @@ void loop() {
     lcd.setCursor(0, 3);
     lcd.print("Conso: " + String((int)acc_power) + " W");
   }
-  
+  Serial.print("Voltage buy: ");     Serial.print(acbuy_voltage); Serial.println(" V");
+  Serial.print("Voltage prod: ");     Serial.print(acp_voltage); Serial.println(" V");
   Serial.print("Current buy: ");       Serial.print(acbuy_current);     Serial.println(" A");
   Serial.print("pf buy: ");       Serial.print(acbuy_pf);     Serial.println(" ");
   Serial.print("Power buy: ");        Serial.print(acbuy_power);        Serial.println(" W");
