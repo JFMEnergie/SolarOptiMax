@@ -35,8 +35,8 @@
   String FirmwareVer = {
     "S00.00"
   };
-  #define URL_fw_Version "https://raw.githubusercontent.com/JFMEnergie/SolarOptiMax/Update/Software/Versions/Download/Releases/fw.ino/bin_version.txt"
-  #define URL_fw_Bin "https://raw.githubusercontent.com/JFMEnergie/SolarOptiMax/Update/Software/Versions/Download/Releases/fw.ino/fw.bin"
+  #define URL_fw_Version "https://raw.githubusercontent.com/JFMEnergie/SolarOptiMax/Update/Software/Versions/Test/Releases/fw.ino/bin_version.txt"
+  #define URL_fw_Bin "https://raw.githubusercontent.com/JFMEnergie/SolarOptiMax/Update/Software/Versions/Test/Releases/fw.ino/fw.bin"
 
   void firmwareUpdate();
   int FirmwareVersionCheck();
