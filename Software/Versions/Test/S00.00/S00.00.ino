@@ -20,8 +20,8 @@
   #include <WiFiUdp.h>
   #include <WiFiClientSecure.h>
 
-  #define PZEM_RX_PIN 17
-  #define PZEM_TX_PIN 16
+  #define PZEM_RX_PIN 16
+  #define PZEM_TX_PIN 17
   #define PZEM_SERIAL Serial2
   PZEM004Tv30 pzem(PZEM_SERIAL, PZEM_RX_PIN, PZEM_TX_PIN);
   #define NUM_PZEMS 2
@@ -307,7 +307,7 @@
     for (int i = 0; i < NUM_PZEMS; i++) {
       Serial.print("Renseignez les valeurs de tension puis de courant (exemple: 324.5/4.5) pour la ");
       calibration_count++;
-      if (i==0){
+      if (i==0 && calibration_count < 10){
         Serial.println(" consommation :");
         while (!Serial.available()) {
           // Wait for user input
@@ -339,7 +339,7 @@
           } 
         }
       }
-      if (i==1){
+      if (i==1 && calibration_count >= 10){
         Serial.println(" production :");
         while (!Serial.available()) {
           // Wait for user input

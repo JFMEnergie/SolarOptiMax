@@ -30,7 +30,7 @@ PZEM004Tv30 pzems[NUM_PZEMS];
 LiquidCrystal_I2C lcd(0x27, 20, 4);
 
 String FirmwareVer = {
-  "S01.02"
+  "S01.02.01"
 };
 #define URL_fw_Version "https://raw.githubusercontent.com/JFMEnergie/SolarOptiMax/Update/Software/Versions/Download/Releases/fw.ino/bin_version.txt"
 #define URL_fw_Bin "https://raw.githubusercontent.com/JFMEnergie/SolarOptiMax/Update/Software/Versions/Download/Releases/fw.ino/fw.bin"
@@ -42,7 +42,7 @@ unsigned long previousMillis = 0;
 const long interval = 15*60*1000;
 
 const char* defaultSsid = "SolarOptiMax";
-const char* defaultPassword = "ConfigClient";
+const char* defaultPassword = "SolarOptiMax";
 String ssid;
 String password;
 String automation_id;
@@ -132,16 +132,19 @@ Preferences preferences;
 
 
 void setup() {
-  Serial.begin(115200);
+    Serial.begin(115200);
   Serial2.begin(9600);
   Serial.println("WELCOME");
   Serial.print("Active firmware version:");
   Serial.println(FirmwareVer);
-
   lcd.init();
   lcd.backlight();
   lcd.clear();
-  lcd.setCursor(4, 0);
+  lcd.setCursor(2, 0);
+  lcd.print("JFM Energie SAS");
+  lcd.setCursor(6, 1);
+  lcd.print("presente");
+  lcd.setCursor(4, 3);
   lcd.print("SolarOptiMax");
   delay(1000);
   lcd.setCursor(6, 2);
@@ -637,7 +640,6 @@ void loop() {
       previousMillis = currentMillis;
       if (FirmwareVersionCheck()) {
         firmwareUpdate();
-        updateConfig();
       }
     }
     Serial.println(&timeinfo, "%H:%M:%S");
@@ -646,6 +648,7 @@ void loop() {
       pzems[0].resetEnergy();
       pzems[1].resetEnergy();
       lastHour = timeinfo.tm_hour;
+      updateConfig();
     }
   }
   
@@ -659,10 +662,6 @@ void loop() {
   signed int acp_power = 0;
   float acp_energy = 0;
   float acp_pf = 0;
-  float acp_voltage_correction = 1.002;
-  float acp_current_correction = 0.73;
-  float acbuy_current_correction = 0.76;
-  float acbuy_voltage_correction = 1.005;
   for (int i = 0; i < NUM_PZEMS; i++) {
     Serial.print("PZEM ");
     Serial.print(i);
@@ -690,7 +689,6 @@ void loop() {
   acbuy_voltage = acbuy_voltage*acbuy_voltage_correction;
   acbuy_current = acbuy_current*acbuy_current_correction;
   acbuy_power = acbuy_voltage*acbuy_current;
-  acp_power = acp_voltage*acp_current;
 
   if (acp_current == acbuy_current - 0,01) {
     acbuy_current = acbuy_current - 0,01;

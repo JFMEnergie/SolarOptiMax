@@ -32,8 +32,8 @@ LiquidCrystal_I2C lcd(0x27, 20, 4);
 String FirmwareVer = {
   "S01.02"
 };
-#define URL_fw_Version "https://raw.githubusercontent.com/JFMEnergie/SolarOptiMax/Update/Software/Versions/Download/Releases/fw.ino/bin_version.txt"
-#define URL_fw_Bin "https://raw.githubusercontent.com/JFMEnergie/SolarOptiMax/Update/Software/Versions/Download/Releases/fw.ino/fw.bin"
+#define URL_fw_Version "https://raw.githubusercontent.com/JFMEnergie/SolarOptiMax/Update/Software/Versions/Test/Releases/fw.ino/bin_version.txt"
+#define URL_fw_Bin "https://raw.githubusercontent.com/JFMEnergie/SolarOptiMax/Update/Software/Versions/Test/Releases/fw.ino/fw.bin"
 
 void firmwareUpdate();
 int FirmwareVersionCheck();
@@ -137,13 +137,16 @@ void setup() {
   Serial.println("WELCOME");
   Serial.print("Active firmware version:");
   Serial.println(FirmwareVer);
-
   lcd.init();
   lcd.backlight();
   lcd.clear();
-  lcd.setCursor(4, 0);
+  lcd.setCursor(2, 0);
+  lcd.print("JFM Energie SAS");
+  lcd.setCursor(6, 1);
+  lcd.print("presente");
+  lcd.setCursor(4, 3);
   lcd.print("SolarOptiMax");
-  delay(1000);
+  delay(3000);
   lcd.setCursor(6, 2);
   lcd.print("WELCOME");
   delay(1000);
@@ -673,6 +676,7 @@ void loop() {
     if (i == 0) {
       acbuy_voltage= pzems[i].voltage();
       acbuy_current = pzems[i].current();
+      acbuy_power = pzems[i].power();
       acbuy_energy = pzems[i].energy();
       acbuy_pf = pzems[i].pf();
     } else if (i == 1) {
@@ -685,13 +689,13 @@ void loop() {
   }
 
   // //Coorection factor
-  acp_voltage = acp_voltage*acp_voltage_correction;
-  acp_current = acp_current*acp_current_correction;
-  acbuy_voltage = acbuy_voltage*acbuy_voltage_correction;
-  acbuy_current = acbuy_current*acbuy_current_correction;
-  acbuy_power = acbuy_voltage*acbuy_current;
-  acp_power = acp_voltage*acp_current;
-
+  // acp_voltage = acp_voltage*acp_voltage_correction;
+  // acp_current = acp_current*acp_current_correction;
+  // acbuy_voltage = acbuy_voltage*acbuy_voltage_correction;
+  // acbuy_current = acbuy_current*acbuy_current_correction;
+  // acbuy_power = acbuy_voltage*acbuy_current;
+  // acp_power = acp_voltage*acp_current;
+  acp_voltage = acp_voltage - 0.2;
   if (acp_current == acbuy_current - 0,01) {
     acbuy_current = acbuy_current - 0,01;
   }
@@ -711,7 +715,9 @@ void loop() {
     }
   }
   else{
-    signcount = signcount - 1;
+    if (acp_voltage != acbuy_voltage){
+      signcount = signcount - 1;
+    }
     if (signcount <= 0){
 
     }
