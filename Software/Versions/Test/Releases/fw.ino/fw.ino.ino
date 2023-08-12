@@ -47,7 +47,7 @@ String ssid;
 String password;
 String automation_id;
 int building_id = 0;
-int power = 0;
+int puissance = 0;
 int nombre_pano = 0;
 String VAH;
 String VAS;
@@ -111,6 +111,9 @@ int lastHour = 0;
 unsigned long timeout = millis() + 10000;
 const int dataInterval = 60;
 
+unsigned long lastUpdate = 0;
+const unsigned long updateInterval = 60000;
+
 int acbuy_power = 0;
 
 struct EnergyData {
@@ -137,16 +140,13 @@ void setup() {
   Serial.println("WELCOME");
   Serial.print("Active firmware version:");
   Serial.println(FirmwareVer);
+
   lcd.init();
   lcd.backlight();
   lcd.clear();
-  lcd.setCursor(2, 0);
-  lcd.print("JFM Energie SAS");
-  lcd.setCursor(6, 1);
-  lcd.print("presente");
-  lcd.setCursor(4, 3);
+  lcd.setCursor(4, 0);
   lcd.print("SolarOptiMax");
-  delay(3000);
+  delay(1000);
   lcd.setCursor(6, 2);
   lcd.print("WELCOME");
   delay(1000);
@@ -169,13 +169,13 @@ void setup() {
   acp_current_correction = preferences.getFloat("acp_current_correction", 1.0);
   acbuy_voltage_correction = preferences.getFloat("acbuy_voltage_correction", 1.0);
   acbuy_current_correction = preferences.getFloat("acbuy_current_correction", 1.0);
-  building_id = preferences.putUInt("building_id", 0);
-  power = preferences.putUInt("power", 0);
-  nombre_pano = preferences.putUInt("nombre_pano", 0);
-  VAH = preferences.getString("VAH", VAH);
-  VAS = preferences.getString("VAS", VAS);
-  installation_automate = preferences.getString("installation_automate", installation_automate);
-  installation_pano = preferences.getString("installation_pano", installation_pano);
+  building_id = preferences.getInt("building_id", 0);
+  nombre_pano = preferences.getInt("nombre_pano", 0);
+  puissance = preferences.getInt("puissance", 0);
+  VAH = preferences.getString("VAH");
+  VAS = preferences.getString("VAS");
+  installation_automate = preferences.getString("installation_automate");
+  installation_pano = preferences.getString("installation_pano");
   restartcount = preferences.getInt("restartcount", 0);
   bool configured = preferences.getBool("configured", false);
   if (!configured) {
@@ -331,7 +331,7 @@ String getConfigPage() {
 void printConfigData() {
   Serial.println("===== Configuration de l'installation =====");
   Serial.println("Nombre de pano : " + String(nombre_pano));
-  Serial.println("Puissance à crête : " + String(power));
+  Serial.println("Puissance à crête : " + String(puissance));
   Serial.println("Date d'installation des panneaux solaires : " +  String(installation_pano));
   Serial.println("===== Configuration de l'automate =====");
   Serial.println("Numéro du batiment : " + String(building_id));
@@ -417,19 +417,19 @@ void updateConfig() {
     if (!error) {
       automation_id = doc["id"].as<String>();
       int building_id = doc["building_id"];
-      power = doc["puissance"];
-      nombre_pano = doc["nombre_pano"];
+      int puissance = doc["puissance"];
+      int nombre_pano = doc["nombre_pano"];
       VAH = doc["version_automate_hard"].as<String>();
       VAS = doc["version_automate_soft"].as<String>();  
-      String installation_automate = doc["installation_automate"];
-      String installation_pano = doc["installation_pano"];
+      String installation_automate = doc["installation_automate"].as<String>();
+      String installation_pano = doc["installation_pano"].as<String>();
       const char* NewSsid = doc["wifi_id"];
       // const char* NewPassword = doc["wifi_password"];
 
       preferences.begin("config", false);
       preferences.putString("automation_id", automation_id);
       preferences.putInt("building_id", building_id);
-      preferences.putInt("power", power);
+      preferences.putInt("puissance", puissance);
       preferences.putInt("nombre_pano", nombre_pano);
       preferences.putString("VAH", VAH);
       preferences.putString("VAS", VAS);
@@ -460,7 +460,7 @@ void updateConfig() {
       Serial.println("Données générales :");
       Serial.println("automation_id: " + String(automation_id));
       Serial.println("building_id: " + String(building_id));
-      Serial.println("power: " + String(power));
+      Serial.println("puissance: " + String(puissance));
       Serial.println("nombre_pano: " + String(nombre_pano));
       Serial.println("VAH: " + String(VAH));
       Serial.println("VAS: " + String(VAS));
@@ -640,9 +640,12 @@ void loop() {
       previousMillis = currentMillis;
       if (FirmwareVersionCheck()) {
         firmwareUpdate();
-        updateConfig();
       }
     }
+    // if (currentMillis - lastUpdate >= updateInterval) {
+    //   lastUpdate = currentMillis;
+    //   updateConfig();
+    // }
     Serial.println(&timeinfo, "%H:%M:%S");
 
     if (timeinfo.tm_hour != lastHour) {
@@ -662,10 +665,6 @@ void loop() {
   signed int acp_power = 0;
   float acp_energy = 0;
   float acp_pf = 0;
-  float acp_voltage_correction = 1.002;
-  float acp_current_correction = 0.73;
-  float acbuy_current_correction = 0.76;
-  float acbuy_voltage_correction = 1.005;
   for (int i = 0; i < NUM_PZEMS; i++) {
     Serial.print("PZEM ");
     Serial.print(i);
@@ -676,7 +675,6 @@ void loop() {
     if (i == 0) {
       acbuy_voltage= pzems[i].voltage();
       acbuy_current = pzems[i].current();
-      acbuy_power = pzems[i].power();
       acbuy_energy = pzems[i].energy();
       acbuy_pf = pzems[i].pf();
     } else if (i == 1) {
@@ -689,13 +687,12 @@ void loop() {
   }
 
   // //Coorection factor
-  // acp_voltage = acp_voltage*acp_voltage_correction;
-  // acp_current = acp_current*acp_current_correction;
-  // acbuy_voltage = acbuy_voltage*acbuy_voltage_correction;
-  // acbuy_current = acbuy_current*acbuy_current_correction;
-  // acbuy_power = acbuy_voltage*acbuy_current;
-  // acp_power = acp_voltage*acp_current;
-  acp_voltage = acp_voltage - 0.2;
+  acp_voltage = acp_voltage*acp_voltage_correction;
+  acp_current = acp_current*acp_current_correction;
+  acbuy_voltage = acbuy_voltage*acbuy_voltage_correction;
+  acbuy_current = acbuy_current*acbuy_current_correction;
+  acbuy_power = acbuy_voltage*acbuy_current;
+
   if (acp_current == acbuy_current - 0,01) {
     acbuy_current = acbuy_current - 0,01;
   }
@@ -715,9 +712,7 @@ void loop() {
     }
   }
   else{
-    if (acp_voltage != acbuy_voltage){
-      signcount = signcount - 1;
-    }
+    signcount = signcount - 1;
     if (signcount <= 0){
 
     }
@@ -730,72 +725,74 @@ void loop() {
 
   time_t now = time(nullptr);
   for (int i = 0; i < numRelays; i++) {
-    if (relayActivatedTime[i] != 0){
-      Serial.println(now - relayActivatedTime[i]);
-    }
-    else{
-      Serial.println("SSR " + String(i + 1) + " : OFF");
-    }
-    if (relayConfigs[i].etat == Inactif) {
-      continue;
-    } 
-    else if (relayConfigs[i].etat == ActifDiscontinu) {
-      if (acp_power >= 500) {
-        if (i == 0 && SSR1 == 0) {
-          digitalWrite(relayPin[i], HIGH);
-          SSR1 = 1;
-          relayActivatedTime[i] = now;
-        }
+    if (!isnan(acp_power)){
+      if (relayActivatedTime[i] != 0){
+        Serial.println(now - relayActivatedTime[i]);
       }
-      else if ((acp_power < 500) && (now - relayActivatedTime[i] >= relayOffDelay) &&  (SSR1 == 1)){ 
-        if (i == 0) {
-          digitalWrite(relayPin[i], LOW);
-          SSR1 = 0;
-          relayActivatedTime[i] = 0;
-        }
-      } 
-      if (acp_power >= 1000) {
-        if (i == 1 && SSR2 == 0) {
-          digitalWrite(relayPin[i], HIGH);
-          SSR2 = 1;
-          relayActivatedTime[i] = now;
-        }
+      else{
+        Serial.println("SSR " + String(i + 1) + " : OFF");
       }
-      else if ((acp_power < 1000) && (now - relayActivatedTime[i] >= relayOffDelay) &&  (SSR2 == 1)){ 
-        if (i == 1) {
-          digitalWrite(relayPin[i], LOW);
-          SSR2 = 0;
-          relayActivatedTime[i] = 0;
-        }
-      }  
-      if (acp_power >= 1500) {
-        if (i == 2 && SSR3 == 0) {
-          digitalWrite(relayPin[i], HIGH);
-          SSR3 = 1;
-          relayActivatedTime[i] = now;
-        }
+      if (relayConfigs[i].etat == Inactif) {
+        continue;
       } 
-      else if ((acp_power < 1500) && (now - relayActivatedTime[i] >= relayOffDelay) &&  (SSR3 == 1)){ 
-        if (i == 2) {
-          digitalWrite(relayPin[i], LOW);
-          SSR3 = 0;
-          relayActivatedTime[i] = 0;
+      else if (relayConfigs[i].etat == ActifDiscontinu) {
+        if (acp_power >= 500) {
+          if (i == 0 && SSR1 == 0) {
+            digitalWrite(relayPin[i], HIGH);
+            SSR1 = 1;
+            relayActivatedTime[i] = now;
+          }
         }
-      } 
-      if (acp_power >= 2000) {
-        if (i == 3 && SSR4 == 0) {
-          digitalWrite(relayPin[i], HIGH);
-          SSR4 = 1;
-          relayActivatedTime[i] = now;
+        else if ((acp_power < 500) && (now - relayActivatedTime[i] >= relayOffDelay) &&  (SSR1 == 1)){ 
+          if (i == 0) {
+            digitalWrite(relayPin[i], LOW);
+            SSR1 = 0;
+            relayActivatedTime[i] = 0;
+          }
+        } 
+        if (acp_power >= 1000) {
+          if (i == 1 && SSR2 == 0) {
+            digitalWrite(relayPin[i], HIGH);
+            SSR2 = 1;
+            relayActivatedTime[i] = now;
+          }
         }
+        else if ((acp_power < 1000) && (now - relayActivatedTime[i] >= relayOffDelay) &&  (SSR2 == 1)){ 
+          if (i == 1) {
+            digitalWrite(relayPin[i], LOW);
+            SSR2 = 0;
+            relayActivatedTime[i] = 0;
+          }
+        }  
+        if (acp_power >= 1500) {
+          if (i == 2 && SSR3 == 0) {
+            digitalWrite(relayPin[i], HIGH);
+            SSR3 = 1;
+            relayActivatedTime[i] = now;
+          }
+        } 
+        else if ((acp_power < 1500) && (now - relayActivatedTime[i] >= relayOffDelay) &&  (SSR3 == 1)){ 
+          if (i == 2) {
+            digitalWrite(relayPin[i], LOW);
+            SSR3 = 0;
+            relayActivatedTime[i] = 0;
+          }
+        } 
+        if (acp_power >= 2000) {
+          if (i == 3 && SSR4 == 0) {
+            digitalWrite(relayPin[i], HIGH);
+            SSR4 = 1;
+            relayActivatedTime[i] = now;
+          }
+        }
+        else if ((acp_power < 2000) && (now - relayActivatedTime[i] >= relayOffDelay) &&  (SSR4 == 1)){ 
+          if (i == 3) {
+            digitalWrite(relayPin[i], LOW);
+            SSR4 = 0;
+            relayActivatedTime[i] = 0;
+          }
+        }  
       }
-      else if ((acp_power < 2000) && (now - relayActivatedTime[i] >= relayOffDelay) &&  (SSR4 == 1)){ 
-        if (i == 3) {
-          digitalWrite(relayPin[i], LOW);
-          SSR4 = 0;
-          relayActivatedTime[i] = 0;
-        }
-      }  
     }
   }
 
@@ -896,7 +893,7 @@ void loop() {
     }
     else{
       lcd.print("Auto-conso: " + String((int)state) + " %");
-    }    
+    }   
   }
   Serial.print("Voltage buy: ");     Serial.print(acbuy_voltage); Serial.println(" V");
   Serial.print("Voltage prod: ");     Serial.print(acp_voltage); Serial.println(" V");
@@ -906,7 +903,7 @@ void loop() {
   Serial.print("Current prod: ");       Serial.print(acp_current);     Serial.println(" A");
   Serial.print("pf prod: ");       Serial.print(acp_pf);     Serial.println("");
   Serial.print("Power prod: ");       Serial.print(acp_power);     Serial.println(" W");
-  Serial.print("SSR1 :"); Serial.println(SSR1); 
+  Serial.print("SSR1 :"); Serial.println(SSR1);
   Serial.print("SSR2 :"); Serial.println(SSR2);
   Serial.print("SSR3 :"); Serial.println(SSR3);
   Serial.print("SSR4 :"); Serial.println(SSR4);

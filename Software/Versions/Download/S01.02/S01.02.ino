@@ -642,10 +642,10 @@ void loop() {
         firmwareUpdate();
       }
     }
-    if (currentMillis - lastUpdate >= updateInterval) {
-      lastUpdate = currentMillis;
-      updateConfig();
-    }
+    // if (currentMillis - lastUpdate >= updateInterval) {
+    //   lastUpdate = currentMillis;
+    //   updateConfig();
+    // }
     Serial.println(&timeinfo, "%H:%M:%S");
 
     if (timeinfo.tm_hour != lastHour) {
@@ -665,10 +665,6 @@ void loop() {
   signed int acp_power = 0;
   float acp_energy = 0;
   float acp_pf = 0;
-  float acp_voltage_correction = 1.002;
-  float acp_current_correction = 0.73;
-  float acbuy_current_correction = 0.76;
-  float acbuy_voltage_correction = 1.005;
   for (int i = 0; i < NUM_PZEMS; i++) {
     Serial.print("PZEM ");
     Serial.print(i);
